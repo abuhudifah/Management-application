@@ -3069,7 +3069,26 @@
         function updateBankAccountsList() {
             const dateFilter = document.getElementById('bank-accounts-date').value;
             const targetDate = dateFilter || getTargetDate();
-            const banks = allRecords.filter(r => r.is_bank_account);
+            
+            // الحصول على جميع الحسابات البنكية
+            let banks = allRecords.filter(r => r.is_bank_account);
+            
+            // إذا كان المستخدم مندوباً، نفلتر الحسابات البنكية
+            if (userType === 'agent') {
+                // الحصول على الإيداعات للمندوب الحالي في التاريخ المستهدف
+                const agentDeposits = allRecords.filter(r => 
+                    r.type === 'deposit' && 
+                    r.agent_name === currentAgent && 
+                    r.date === targetDate
+                );
+                
+                // استخراج أسماء الحسابات البنكية الفريدة من إيداعات المندوب
+                const agentBankAccounts = [...new Set(agentDeposits.map(d => d.bank_account))];
+                
+                // تصفية الحسابات البنكية لتظهر فقط تلك التي أودع المندوب لها
+                banks = banks.filter(bank => agentBankAccounts.includes(bank.bank_account));
+            }
+            
             const list = document.getElementById('bank-accounts-list');
             
             if (banks.length === 0) {
@@ -3078,6 +3097,7 @@
             }
             
             list.innerHTML = banks.map(bank => {
+                // حساب الإيداعات والسحوبات لهذا الحساب في التاريخ المحدد
                 const totalDeposits = getTotalDepositsForBank(bank.bank_account, targetDate);
                 const totalWithdrawals = getTotalWithdrawalsForBank(bank.bank_account, targetDate);
                 const totalActivity = totalDeposits + totalWithdrawals;
@@ -3085,8 +3105,15 @@
                 const isAgent = userType === 'agent';
                 
                 // الحصول على آخر 5 إيداعات لهذا الحساب البنكي
-                const lastDeposits = allRecords
-                    .filter(r => r.type === 'deposit' && r.bank_account === bank.bank_account && r.date === targetDate)
+                let lastDeposits = allRecords
+                    .filter(r => r.type === 'deposit' && r.bank_account === bank.bank_account && r.date === targetDate);
+                    
+                // إذا كان المستخدم مندوباً، نفلتر بإسم المندوب
+                if (userType === 'agent') {
+                    lastDeposits = lastDeposits.filter(r => r.agent_name === currentAgent);
+                }
+                
+                lastDeposits = lastDeposits
                     .sort((a, b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time))
                     .slice(0, 5);
                 
